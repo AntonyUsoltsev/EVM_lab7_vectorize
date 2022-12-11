@@ -4,8 +4,8 @@
 #include <xmmintrin.h>
 #include <time.h>
 #define N 8
-#define M 100000
-void mult(float *a, float *b, float *R) {
+#define M 10
+void mult1(float *a, float *b, float *R) {
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < N; ++j)
             R[i * N + j] = 0;
@@ -22,23 +22,79 @@ void mult(float *a, float *b, float *R) {
         }
     }
 }
-//void mult(float *B, float *A, float *R) {
-//    for (int i = 0; i < N; i++) {
-//        for (int j = 0; j < N; j++) {
-//            float summ = 0;
-//            for (int k = 0; k < N; k++) {
-//                summ += B[i * N + k] * A[k * N + j];
-//            }
-//            R[i * N + j] = summ;
-//        }
-//    }
-//}
+void mult2(const float *A, const float *B, float *R) {
+    float *copy = calloc(N * N, sizeof(float));;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            copy[i * N + j] = B[j * N + i];
+        }
+    }
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            float summ = 0;
+            for (int k = 0; k < N; k++) {
+                summ += A[i * N + k] * copy[j * N + i];
+            }
+            R[i * N + j] = summ;
+        }
+    }
+    free(copy);
+}
 
-void summ(float *A, float *B, float *C) {
+void mult(float *A, float *B, float *R) {
+    float *copy = calloc(N * N, sizeof(float));;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            copy[i * N + j] = B[j * N + i];
+        }
+    }
+    __m128 *m128_left = (__m128 *) A;
+    __m128 *m128_right = (__m128 *) copy;
+    __m128 *m128_result = (__m128 *) R;
+    __m128 mult;
+
+    __m128 tmp;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            R[i * N + j]=0;
+        }
+    }
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            // mult = _mm_set1_ps(A[i * N + j]);
+            __m128 s = _mm_setzero_ps();
+
+            for (int k = 0; k < N / 4; k++) {
+                tmp = _mm_mul_ps(m128_left[i * N + k], m128_right[j * N + k]);
+                s = _mm_add_ps(s, tmp);
+            }
+            tmp = _mm_movehl_ps(tmp, s);
+            s = _mm_add_ps(s, tmp);
+            tmp = _mm_shuffle_ps(s, s, 1);
+            s = _mm_add_ss(s, tmp);
+            float sum;
+            _mm_store_ss(&sum, s);
+            R[i * N + j] = sum;
+            // return sum;
+
+        }
+    }
+}
+
+
+void summ1(float *A, float *B, float *C) {
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             C[i * N + j] = A[i * N + j] + B[i * N + j];
         }
+    }
+}
+void summ(const float *A, const float *B, float *C) {
+    __m128 *m128_result = (__m128 *) C;
+    __m128 *m128_left = (__m128 *) A;
+    __m128 *m128_right = (__m128 *) B;
+    for (int i = 0; i < N * N / 4; ++i) {
+        m128_result[i] = _mm_add_ps(m128_left[i], m128_right[i]);
     }
 }
 
@@ -138,7 +194,21 @@ int main() {
     mult(A,A_1,cur);
     //print_matr(cur);
     clock_t end = clock();
+    float trace;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            if (i==j)
+                trace+=A_1[i*N+j];
+        }
+    }
     double time_used = ((double) (end - beg)) / CLOCKS_PER_SEC;
-    printf("%lf\n", time_used);
+    printf("Time: %lf\n", time_used);
+    printf("Trace: %f\n", trace);
+    print_matr(A_1);
     return 0;
 }
+////Vect Time: 34.513000
+////Trace :0.000759
+
+//// Classic time : 120
+//// Trace :
