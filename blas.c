@@ -7,6 +7,7 @@
 #define N 2048
 #define M 10
 
+
 void create_matrix(float *Matr, float value1, float value2) {
     for (int i = 0; i < N; i++)
         for (int j = 0; j < N; j++)
